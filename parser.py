@@ -140,7 +140,7 @@ def render(root):
 def convert_to_graph(root):
     id = 1
     queue = []
-    graph = AGraph();
+    graph = AGraph()
     graph.add_node(0, label = root.value)
     queue.append((0,root))
     while(len(queue) != 0):
@@ -151,6 +151,95 @@ def convert_to_graph(root):
                 graph.add_edge(new_id, id)
                 queue.append((id, x))
                 id += 1
+    return graph
+
+def to_string(root):
+    if len(root.children) == 0:
+        return str(root.value) + "\n";
+    if root.value == ":=":
+        return root.children[0].value + " := " + str(to_string(root.children[1])) + "\n"
+    if root.value == "+" or root.value == "-" or root.value == "*" or root.value == "<" or root.value == ">" or root.value == ">=" or root.value == "<=" or root.value == "==" or root.value == "&&" or root.value == "||":
+        return str(root.children[0].value) + " " + root.value + " " + str(root.children[1].value) + "\n"
+    if root.value == "if":
+        return "if " + str(to_string(root.children[0])) + "\n"
+    if root.value == "not":
+        return "not " + str(root.children[0].value) + "\n"
+    if root.value == "while":
+        return "if " + str(to_string(root.children[0])) + "\n"
+def convert_to_cfg(root):
+    id = 0
+    graph = AGraph()
+    program = ""
+    revers_stack = []
+    for x in root.children:
+        revers_stack.append(x)
+    stack = []
+    while(len(revers_stack) != 0):
+        stack.append(revers_stack.pop())
+    layer_stack = []
+    while(len(stack) != 0):
+        print '--------------'
+        print stack
+        x = stack.pop()
+        print x
+        print layer_stack
+        if x.value == 'if':
+            temp = to_string(x)
+            program += temp
+            graph.add_node(id, label = program)
+            if len(layer_stack) != 0:
+                (temp,last_id) = layer_stack.pop()
+                if temp == "endelse":
+                    graph.add_edge(last_id, id)
+                    (temp,last_id) = layer_stack.pop()
+                    graph.add_edge(last_id, id)
+                if temp == "if":
+                    graph.add_edge(last_id, id)
+                    layer_stack.append((temp,last_id))
+            layer_stack.append(("if",id))
+            program = ""
+            id += 1
+            stack.append(x.children[2])
+            stack.append(x.children[1])
+        elif x.value == "then" or x.value == "else":
+            if x.value == "then":stack.append(node("endthen"))
+            if x.value == "else":stack.append(node("endelse"))
+            revers_stack = []
+            for xx in x.children:
+                revers_stack.append(xx)
+            while(len(revers_stack) != 0):
+                stack.append(revers_stack.pop())
+        elif x.value == "endthen" or x.value == "endelse":
+            print "program :"+program+str(id)
+            print len(program)
+            if len(program) != 0:
+                graph.add_node(id, label = program)
+            (temp, last_if_id) = layer_stack.pop()
+            revers_stack = []
+            while(temp != "if"):
+                revers_stack.append((temp, last_if_id))
+                (temp, last_if_id) = layer_stack.pop()
+            while(len(revers_stack) != 0):
+                layer_stack.append(revers_stack.pop())
+            if len(program) != 0: graph.add_edge(last_if_id,id)
+            if x.value == "endthen":
+                layer_stack.append(("endthen",id))
+                layer_stack.append((temp, last_if_id))
+
+            if x.value == "endelse":
+                (temp, last_then_id) = layer_stack.pop()
+                #graph.add_edge(last_if_id, last_then_id)
+                layer_stack.append(("endthen", last_then_id))
+                layer_stack.append(("endelse", id))
+            program = ""
+            id += 1
+        elif x.value == "while":
+            temp = to_string(x)
+            program += temp
+        else:
+            program += str(to_string(x))
+    print layer_stack
+    print graph
     return graph
 
 
@@ -179,191 +268,50 @@ ast = node('$',parsed_list)
 render(ast)
 print ast
 
-'''
+
 A = convert_to_graph(ast)
 
-print(A.string()) # print to screen
+#print(A.string()) # print to screen
 A.layout(prog='dot')
+'''
 print "writing to ast.dot"
 A.write("ast.dot") # write to simple.dot
+'''
 print "printing to ast.png"
 A.draw('ast.png',prog="dot") # draw to pngi using circo
-'''
-
-from llvm import *
-from llvm.core import *
-from llvm.ee import *
-my_module = Module.new('cs554_llvm')
-my_named_location = {}
-my_named_values = {}
-
-ty_int = Type.int()
-ty_func = Type.function(Type.int(),[])
-
-f_main = my_module.add_function(ty_func,"main")
-entry = f_main.append_basic_block("entry")
-
-my_builder = Builder.new(entry)
-
-def CodeGen(root):
-#	print '-------', root.value
-	if root.value == '$':
-		for x in root.children:
-			CodeGen(x)
-	elif root.value == ':=':
-		right = CodeGen(root.children[1])
-		if root.children[0].value not in my_named_values:
-			my_named_location[root.children[0].value] = my_builder.alloca(Type.int(), name = root.children[0].value)
-			my_builder.store(right, my_named_location[root.children[0].value])
-		else:
-			a = my_named_location[root.children[0].value]
-			my_builder.store(right, a)
-		my_named_values[root.children[0].value] = right
-	elif root.value == '+' or root.value == '-' or root.value == '*':
-		left = CodeGen(root.children[0])
-		right = CodeGen(root.children[1])
-		if root.value == '+':
-			return my_builder.add(left, right, name = 'plustemp')
-		elif root.value == '-':
-			return my_builder.sub(left, right, name = 'subtemp')
-		else:
-			return my_builder.mul(left, right, name = 'multemp')
-	elif root.value == '&&' or root.value == '||':
-		left = CodeGen(root.children[0])
-		right = CodeGen(root.children[1])
-		a = my_builder.alloca(Type.int(1), name = 'temp')
-		if root.value == '&&':
-			value = my_builder.and_(left,right, name = 'temp')
-		else:
-			value = my_builder.or_(left,right, name = 'temp')
-		my_builder.store(value, a)
-		return value
-	elif root.value == '>' or root.value == '<' or root.value == '==' or root.value == '<=' or root.value == '>=':
-		left = CodeGen(root.children[0])
-		right = CodeGen(root.children[1])
-		a = my_builder.alloca(Type.int(1), name = 'temp')
-		if root.value == '>':
-			value = my_builder.icmp(ICMP_UGT,left, right, name = 'temp')
-		elif root.value == '<':
-			value = my_builder.icmp(ICMP_ULT, left, right, name = 'temp')
-		elif root.value == '==':
-			value =  my_builder.icmp(ICMP_EQ, left, right, name = 'temp')
-		elif root.value == '<=':
-			value =  my_builder.icmp(ICMP_UGE, left, right, name = 'temp')
-		else:
-			my_builder.icmp(ICMP_ULE, left, right, name = 'temp')
-		my_builder.store(value, a)
-		return value
-	elif root.value == 'not':
-		val = CodeGen(root.children[0])
-		a = my_builder.alloca(Type.int(1), name = 'temp')
-		value = my_builder.not_(val,'temp')
-		my_builder.store(value, a)
-		return value
-	elif root.value == 'true' or root.value == 'false':
-		if root.value == 'true':
-			return  Constant.int(Type.int(1), 1)
-		else:
-			return  Constant.int(Type.int(1), 0)
-	elif root.value == 'if':
-		condition_bool = CodeGen(root.children[0])
-		a = my_builder.alloca(Type.int(1), name = 'while_condition')
-		my_builder.store(condition_bool, a)
-
-		then_block = f_main.append_basic_block('then')
-		else_block = f_main.append_basic_block('else')
-		merge_block = f_main.append_basic_block('ifcond')
-		
-		my_builder.cbranch(condition_bool, then_block, else_block)
-
-		my_builder.position_at_end(then_block)
-		CodeGen(root.children[1])
-		my_builder.branch(merge_block)
-
-		then_block = my_builder.basic_block
-
-		my_builder.position_at_end(else_block)
-		CodeGen(root.children[2])
-		my_builder.branch(merge_block)
-
-		else_block = my_builder.basic_block
-
-		my_builder.position_at_end(merge_block)
-	elif root.value == 'while':
-		condition_bool = CodeGen(root.children[0])
-		a = my_builder.alloca(Type.int(1), name = 'while_condition')
-		my_builder.store(condition_bool, a)
 
 
-		do_block = f_main.append_basic_block('do')
-		merge_block = f_main.append_basic_block('whilecond')
-		
-		my_builder.cbranch(condition_bool, do_block, merge_block)
+cfg = convert_to_cfg(ast)
+#print cfg.string()
+cfg.layout(prog='dot')
+print "printing to cfg.png"
+cfg.draw('cfg.png',prog="dot") # draw to pngi using circo
 
-		my_builder.position_at_end(do_block)
-		CodeGen(root.children[1])
 
-		condition_bool = CodeGen(root.children[0])
-		my_builder.store(condition_bool, a)
-		
-		my_builder.cbranch(condition_bool, do_block, merge_block)
-		
-		do_block = my_builder.basic_block
 
-		my_builder.position_at_end(merge_block)
-	elif root.value == 'then' or root.value == 'else' or root.value == 'do':
-		for x in root.children:
-			if x == 'skip':
-				return
-			else:
-				CodeGen(x)
-	elif root.value == 'skip':
-		return
-	elif root.value in my_named_values:
-		return my_named_values[root.value]
-	else:
-		return  Constant.int(Type.int(), root.value)
 
-CodeGen(ast)
-print my_module
 
-result = my_builder.call(f_main, [])
-print(result)
-'''
-s = Constant.stringz("The Answer(tm): %d\n")
-gs = my_module.add_global_variable(s.type, 'result_fmt')
-gs.initializer = s
-p_gs = my_builder.gep(gs,[Constant.int(Type.int(), 0), Constant.int(Type.int(), 0)],inbounds=True)
 
-tp_string = Type.pointer(Type.int(8))
 
-tp_print = Type.function(Type.void(), [tp_string], var_arg=True)
 
-f_printf = my_module.add_function(tp_print, 'printf')
 
-my_builder.call(f_printf, [p_gs, result])
-my_builder.ret(Constant.int(Type.int(), 0))
 
-print("* LLVM IR")
 
-print(my_module)
 
-print("* Verification")
 
-my_module.verify()
 
-obj = 'llvm_ast.o'
 
-dst = 'llvm_ast'
-with open(obj, 'wb') as f:
-        my_module.to_native_object(f)
 
-import subprocess
 
-cmd = ['cc', '-o', dst, obj]
 
-r = subprocess.call(cmd)
 
-if r != 0:
-	raise Exception("Failed to link with " + str(cmd))
-	'''
+
+
+
+
+
+
+
+
+
+
