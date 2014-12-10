@@ -1,0 +1,12 @@
+x := 1 + 2 * -3 - 4;
+y := -( 1 + 2 );
+z := x + y;
+if x > 1 then
+  y := y + z + 1;
+  while not true | false do
+    skip;
+  od;
+else
+  z := z + y + 1;
+fi;
+w := 1 + +2;
