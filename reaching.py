@@ -1,18 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" A collection of functions for calculating reaching definitions.
+""" A collection of functions for calculating reaching definitions. """
 
-    More here
-"""
-#TODO: Write more in header.
-#TODO: NODE ASSUMPTIONS
-# node.attr[type] -> some sort of type so we can differentiate assignments from ifs
 NODE_NONE   =   unicode('0')   # start, end, skip
 NODE_ASSN   =   unicode('1')
 NODE_IF     =   unicode('2')
 NODE_WHILE  =   unicode('3')
-# node.attr[var] -> For assignment nodes, the name of the variable that is assigned.
 
 from pygraphviz import AGraph
 from collections import deque
