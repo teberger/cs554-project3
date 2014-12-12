@@ -3,11 +3,6 @@
 
 """ A collection of functions for calculating reaching definitions. """
 
-NODE_NONE   =   unicode('0')   # start, end, skip
-NODE_ASSN   =   unicode('1')
-NODE_IF     =   unicode('2')
-NODE_WHILE  =   unicode('3')
-
 from pygraphviz import AGraph
 from collections import deque
 
@@ -37,12 +32,11 @@ def getGenSets(cfg):
     nodes = cfg.nodes()
     labels = (node.name for node in nodes)
     variables = (node.attr["var"] for node in nodes)
-    types = (node.attr["type"] for node in nodes)
 
     # Generate the genSet. For non assignment nodes, the value an empty set.
     genSets = dict()
-    for node, label, variable, type in zip(nodes, labels, variables, types):
-        genSets[label] = {(variable, label)} if type == NODE_ASSN else set()
+    for node, label, variable in zip(nodes, labels, variables):
+        genSets[label] = {(variable, label)} if variable != '' else set()
 
     return genSets
 
@@ -120,7 +114,7 @@ def getOutSet(label, genSets, killSets, inSets):
     :param dict[str, set[(str, str)]] inSets: IN sets of the cfg.
     :rtype: set[(str, str)]
     """
-    return genSets[label].union(inSets[label] - killSets[label])
+    return genSets[label] | (inSets[label] - killSets[label])
 
 
 def getReachingDefinitions(cfg, startLabel):
@@ -184,17 +178,17 @@ if __name__ == "__main__":
     g = AGraph(directed=True)
 
     # Nodes
-    g.add_node("start", label="START",              type=NODE_NONE,     var='')
-    g.add_node("0",     label="x := 4;",            type=NODE_ASSN,     var='x')
-    g.add_node("1",     label="y := 7;",            type=NODE_ASSN,     var='y')
-    g.add_node("2",     label="while x < 10 do",    type=NODE_WHILE,    var='')
-    g.add_node("3",     label="if y > 3 then",      type=NODE_IF,       var='')
-    g.add_node("4",     label="y := x + 1;",        type=NODE_ASSN,     var='y')
-    g.add_node("5",     label="x := x + 1;",        type=NODE_ASSN,     var='x')
-    g.add_node("6",     label="a := x + 1;",        type=NODE_ASSN,     var='a')
-    g.add_node("7",     label="y := x + 2;",        type=NODE_ASSN,     var='y')
-    g.add_node("8",     label="x := x + 1;",        type=NODE_ASSN,     var='x')
-    g.add_node("end",   label="END",                type=NODE_NONE,     var='')
+    g.add_node("start", label="START",              var='')
+    g.add_node("0",     label="x := 4;",            var='x')
+    g.add_node("1",     label="y := 7;",            var='y')
+    g.add_node("2",     label="while x < 10 do",    var='')
+    g.add_node("3",     label="if y > 3 then",      var='')
+    g.add_node("4",     label="y := x + 1;",        var='y')
+    g.add_node("5",     label="x := x + 1;",        var='x')
+    g.add_node("6",     label="a := x + 1;",        var='a')
+    g.add_node("7",     label="y := x + 2;",        var='y')
+    g.add_node("8",     label="x := x + 1;",        var='x')
+    g.add_node("end",   label="END",                var='')
 
     # Edges
     g.add_edge("start", "0")
