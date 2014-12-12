@@ -15,6 +15,7 @@ NODE_WHILE  =   unicode('3')
 # node.attr[var] -> For assignment nodes, the name of the variable that is assigned.
 
 from pygraphviz import AGraph
+from collections import deque
 
 
 def getGenSets(cfg):
@@ -105,17 +106,14 @@ def getInSet(label, cfg, outSets):
     Calculates the IN set for a basic block (identified by its label).
 
     The IN set of a basic block is the union of OUT sets of its predecessors.
+    The IN set is also the Reaching Definition (RD) Set.
 
     :param str label: The node for which to calculate the in set.
     :param AGraph cfg: The control-flow graph the node belongs to.
     :param dict[str, set[(str, str)]] outSets: Set of all out sets for the cfg.
     :rtype: set[(str, str)]
     """
-    inSet = set()
-    for pred in cfg.predecessors(label):
-        inSet |= outSets[pred]
-
-    return inSet
+    return set().union(*(outSets[p.name] for p in cfg.predecessors(label)))
 
 
 def getOutSet(label, genSets, killSets, inSets):
@@ -129,6 +127,46 @@ def getOutSet(label, genSets, killSets, inSets):
     :rtype: set[(str, str)]
     """
     return genSets[label].union(inSets[label] - killSets[label])
+
+
+def getReachingDefinitions(cfg, startLabel):
+    """
+    Calculates the reaching definitions of a control-flow graph.
+
+    :param AGraph cfg: The control-flow graph for which to calculate RDs.
+    :param str startLabel: The label of the start node of the CFG.
+    :rtype: dict[str, set[(str, str)]]
+    """
+
+    # Gen / Kill sets can be generated completely immediately.
+    # IN / OUT start out empty initially.
+    # The previousOut set is used to track changes to OUT sets during iteration.
+    genSets = getGenSets(cfg)
+    killSets = getKillSets(genSets)
+    inSets = {label: set() for label in genSets}
+    outSets = inSets.copy()
+    previousOutSets = {label: None for label in genSets}
+
+    # The iteration queue stores the next nodes to evaluate in the iteration.
+    queue = deque([startLabel])
+
+    while queue:
+        label = queue.popleft()
+
+        # Calculate (new) IN set.
+        inSets[label] = getInSet(label, cfg, outSets)
+
+        # Calculate the (new) OUT set, and check if it is different from the
+        # previous version so we know whether or not to add the node's
+        # successors to the iteration queue. The previous set is initially
+        # populated by None, so every node will be visited at least once.
+        outSet = getOutSet(label, genSets, killSets, inSets)
+        if outSet != previousOutSets[label]:
+            outSets[label] = outSet
+            previousOutSets[label] = outSet
+            queue.extend((s.name for s in cfg.successors(label) if s not in queue))
+
+    return inSets
 
 
 if __name__ == "__main__":
@@ -179,31 +217,12 @@ if __name__ == "__main__":
     g.add_edge("8", "2")
 
     # Output a diagram of the control-flow graph.
-    g.draw("output/input2.png", format="png", prog="dot")
+    # g.draw("output/input2.png", format="png", prog="dot")
 
-    genSets = getGenSets(g)
-    killSets = getKillSets(genSets)
-
-    print "GEN"
-    print "==="
-
-    for label, gs in sorted(genSets.iteritems()):
-        print label, gs
-
-    print
-    print "KILL"
-    print "===="
-    for label, ks in sorted(killSets.iteritems()):
-        print label, ks
-
-    print
-    print "IN"
-    print getInSet('8', g, {u'5': {(u'x', u'1'), (u'y', u'4')}, u'7': {(u'z', u'6')}})
-
-    print
-    print "OUT"
-    a = set([1, 2, 3])
-    b = set([4, 5, 6])
-    c = a.union(b)
-    print c
-    print a
+    rd = getReachingDefinitions(g, u"start")
+    labels = sorted([k for k in rd.keys()])
+    for label in labels:
+        print label + ": ",
+        for s in rd[label]:
+            print "[" + s[0] + ", " + s[1] + "] ",
+        print
