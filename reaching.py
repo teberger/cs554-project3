@@ -35,15 +35,14 @@ def getGenSets(cfg):
     one variable. Also, the label number in the tuple will always be the key.
 
     :param AGraph cfg: The CFG for which to generate the gen set.
-    :rtype: dict[int, set[(str, str)]]
+    :rtype: dict[str, set[(str, str)]]
     """
 
     # Get generators for the various attributes for convenience.
-    # TODO: Remove str() calls after debugging is finished!
     nodes = cfg.nodes()
-    labels = (str(node.name) for node in nodes)
-    variables = (str(node.attr["var"]) for node in nodes)
-    types = (str(node.attr["type"]) for node in nodes)
+    labels = (node.name for node in nodes)
+    variables = (node.attr["var"] for node in nodes)
+    types = (node.attr["type"] for node in nodes)
 
     # Generate the genSet. For non assignment nodes, the value an empty set.
     genSets = dict()
@@ -66,8 +65,8 @@ def getKillSets(genSets):
         2 -> set()
         3 -> set((y, 2), (z, 7))
 
-    :param dict[int, set[(str, str)]] genSets: Gen set of the CFG.
-    :rtype: dict[int, set[(str, int)]]
+    :param dict[str, set[(str, str)]] genSets: Gen set of the CFG.
+    :rtype: dict[str, set[(str, str)]]
     """
 
     killSets = dict()
@@ -101,6 +100,37 @@ def getKillSets(genSets):
     return killSets
 
 
+def getInSet(label, cfg, outSets):
+    """
+    Calculates the IN set for a basic block (identified by its label).
+
+    The IN set of a basic block is the union of OUT sets of its predecessors.
+
+    :param str label: The node for which to calculate the in set.
+    :param AGraph cfg: The control-flow graph the node belongs to.
+    :param dict[str, set[(str, str)]] outSets: Set of all out sets for the cfg.
+    :rtype: set[(str, str)]
+    """
+    inSet = set()
+    for pred in cfg.predecessors(label):
+        inSet |= outSets[pred]
+
+    return inSet
+
+
+def getOutSet(label, genSets, killSets, inSets):
+    """
+    Calculates the OUT set for a basic block (identified by its label).
+
+    :param str label: The node ofr which to calculate the out set.
+    :param dict[str, set[(str, str)]] genSets: Gen sets of the cfg.
+    :param dict[str, set[(str, str)]] killSets: Kill sets of the cfg.
+    :param dict[str, set[(str, str)]] inSets: IN sets of the cfg.
+    :rtype: set[(str, str)]
+    """
+    return genSets[label].union(inSets[label] - killSets[label])
+
+
 if __name__ == "__main__":
     # Manually construct a CFG for testing purposes from the following code:
     #
@@ -122,17 +152,17 @@ if __name__ == "__main__":
     g = AGraph(directed=True)
 
     # Nodes
-    g.add_node("start", label="START",             type=NODE_NONE,     var='')
-    g.add_node("0",    label="x := 4;",            type=NODE_ASSN,     var='x')
-    g.add_node("1",    label="y := 7;",            type=NODE_ASSN,     var='y')
-    g.add_node("2",    label="while x < 10 do",    type=NODE_WHILE,    var='')
-    g.add_node("3",    label="if y > 3 then",      type=NODE_IF,       var='')
-    g.add_node("4",    label="y := x + 1;",        type=NODE_ASSN,     var='y')
-    g.add_node("5",    label="x := x + 1;",        type=NODE_ASSN,     var='x')
-    g.add_node("6",    label="a := x + 1;",        type=NODE_ASSN,     var='a')
-    g.add_node("7",    label="y := x + 2;",        type=NODE_ASSN,     var='y')
-    g.add_node("8",    label="x := x + 1;",        type=NODE_ASSN,     var='x')
-    g.add_node("end",   label="END",               type=NODE_NONE,     var='')
+    g.add_node("start", label="START",              type=NODE_NONE,     var='')
+    g.add_node("0",     label="x := 4;",            type=NODE_ASSN,     var='x')
+    g.add_node("1",     label="y := 7;",            type=NODE_ASSN,     var='y')
+    g.add_node("2",     label="while x < 10 do",    type=NODE_WHILE,    var='')
+    g.add_node("3",     label="if y > 3 then",      type=NODE_IF,       var='')
+    g.add_node("4",     label="y := x + 1;",        type=NODE_ASSN,     var='y')
+    g.add_node("5",     label="x := x + 1;",        type=NODE_ASSN,     var='x')
+    g.add_node("6",     label="a := x + 1;",        type=NODE_ASSN,     var='a')
+    g.add_node("7",     label="y := x + 2;",        type=NODE_ASSN,     var='y')
+    g.add_node("8",     label="x := x + 1;",        type=NODE_ASSN,     var='x')
+    g.add_node("end",   label="END",                type=NODE_NONE,     var='')
 
     # Edges
     g.add_edge("start", "0")
@@ -165,3 +195,15 @@ if __name__ == "__main__":
     print "===="
     for label, ks in sorted(killSets.iteritems()):
         print label, ks
+
+    print
+    print "IN"
+    print getInSet('8', g, {u'5': {(u'x', u'1'), (u'y', u'4')}, u'7': {(u'z', u'6')}})
+
+    print
+    print "OUT"
+    a = set([1, 2, 3])
+    b = set([4, 5, 6])
+    c = a.union(b)
+    print c
+    print a
