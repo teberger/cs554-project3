@@ -45,8 +45,10 @@ def convert_ast_to_cfg(file):
             graph.add_edge(last_id, id)
             else_node = copy(x.children[2])
             then_node = copy(x.children[1])
-            else_node.text = "else"
-            then_node.text = "then"
+            setattr(else_node, text, "else")
+            setattr(then_node, text, "then")
+            #else_node.text = "else"
+            #then_node.text = "then"
             stack.push(else_node)
             stack.push(then_node)
             layer_stack.push("if", id)
