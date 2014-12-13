@@ -47,9 +47,9 @@ def convert_ast_to_cfg(file):
             then_node = copy(x.children[1])
             else_node.token.text = "else"
             then_node.token.text = "then"
-            stack.push(else_node)
-            stack.push(then_node)
-            layer_stack.push(("if", id))
+            stack.append(else_node)
+            stack.append(then_node)
+            layer_stack.append(("if", id))
             last_id = id
         elif x.text == "then":
             revers_stack = []
@@ -58,7 +58,7 @@ def convert_ast_to_cfg(file):
             for xx in revers_stack:
                 stack.append(revers_stack.pop())
         elif x.text == "else":
-            un_solved_stack.push(last_id)
+            un_solved_stack.append(last_id)
             revers_stack = []
             for xx in x.children:
                 revers_stack.append(xx)
@@ -67,14 +67,14 @@ def convert_ast_to_cfg(file):
             (statement, id) = layer_stack.pop()
             last_id = id
         elif x.text == "fi":
-            un_solved_stack.push(last_id)
+            un_solved_stack.append(last_id)
         elif x.text == "while":
             program = "while " + render_short(x.children[0])
             graph.add_node(id, l = program)
             graph.add_edge(last_id,id)
             do_node = copy(x.children[1])
             do_node.token.text = "do"
-            stack.push(do_node)
+            stack.append(do_node)
         elif x.text == "do":
             revers_stack = []
             for xx in x.children:
@@ -82,7 +82,7 @@ def convert_ast_to_cfg(file):
             for xx in revers_stack:
                 stack.append(xx)
         elif x.text == "od":
-            un_solved_stack.push(last_id)
+            un_solved_stack.append(last_id)
         id += 1
         program = ""
     return graph
