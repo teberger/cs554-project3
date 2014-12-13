@@ -87,4 +87,4 @@ def convert_ast_to_cfg(file):
         program = ""
     return graph
 
-print convert_ast_to_cfg()
+print convert_ast_to_cfg("test.txt")
