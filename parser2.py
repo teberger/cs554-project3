@@ -24,13 +24,14 @@ def convert_ast_to_cfg(file):
     for x in ast.children:
         revers_stack.append(x)
     stack = []
-    for x in revers_stack:
+    while(len(revers_stack) != 0):
         stack.append(revers_stack.pop())
     layer_stack = []
     last_id = 0
     un_solved_stack = []
     while(len(stack) != 0):
         x = stack.pop()
+	print x.text
         if x.text == ":=" or x.text == "skip":
             if x.text == "skip":
                 program = "skip";
@@ -43,8 +44,10 @@ def convert_ast_to_cfg(file):
             program = "if " + render_short(x.children[0])
             graph.add_node(id, l = program)
             graph.add_edge(last_id, id)
-            else_node = copy(x.children[2])
+            fi_node = copy(x.children[0])
+	    else_node = copy(x.children[2])
             then_node = copy(x.children[1])
+	    fi_node.token.text = "fi"
             else_node.token.text = "else"
             then_node.token.text = "then"
             stack.append(else_node)
@@ -55,34 +58,43 @@ def convert_ast_to_cfg(file):
             revers_stack = []
             for xx in x.children:
                 revers_stack.append(xx)
-            for xx in revers_stack:
+            while(len(revers_stack) != 0):
                 stack.append(revers_stack.pop())
         elif x.text == "else":
             un_solved_stack.append(last_id)
             revers_stack = []
             for xx in x.children:
                 revers_stack.append(xx)
-            for xx in revers_stack:
+            while(len(revers_stack) != 0):
                 stack.append(revers_stack.pop())
-            (statement, id) = layer_stack.pop()
-            last_id = id
+            (statement, last_id) = layer_stack.pop()
+	    layer_stack.append((statement,last_id))
         elif x.text == "fi":
             un_solved_stack.append(last_id)
+	    layer_stack.pop()
         elif x.text == "while":
             program = "while " + render_short(x.children[0])
             graph.add_node(id, l = program)
             graph.add_edge(last_id,id)
+	    od_node = copy(x.children[0])
             do_node = copy(x.children[1])
+	    od_node.token.text = "od"
             do_node.token.text = "do"
+	    stack.append(od_node)
             stack.append(do_node)
+	    layer_stack.append("while", id)
+	    last_id = id
         elif x.text == "do":
             revers_stack = []
             for xx in x.children:
                 revers_stack.append(xx)
-            for xx in revers_stack:
+            while(len(revers_stack) != 0):
                 stack.append(xx)
         elif x.text == "od":
-            un_solved_stack.append(last_id)
+	    end_while_id = last_id
+	    (statement, last_id) = layer_stack.pop()
+            graph.add_edge(end_while_id, last_id)
+	print "id:",id," statement: ",program
         id += 1
         program = ""
     return graph
