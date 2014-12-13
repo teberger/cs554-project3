@@ -85,3 +85,6 @@ def convert_ast_to_cfg(file):
             un_solved_stack.push(last_id)
         id += 1
         program = ""
+    return graph
+
+print convert_ast_to_cfg()
