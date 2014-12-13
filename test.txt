@@ -7,3 +7,8 @@ else
         a := x + 1;
         y := x + 2;
 fi;
+while not true
+do
+	s:= 1;
+	skip;
+od;
