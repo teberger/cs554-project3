@@ -15,8 +15,7 @@ def render_short(node):
     return temp_program
 
 '''converting an AST to CFG'''
-def convert_ast_to_cfg(file):
-    ast = SimpleParse(file)
+def convert_ast_to_cfg(ast):
     graph = AGraph()
     id = 0
     program = ""
