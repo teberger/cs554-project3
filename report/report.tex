@@ -1,0 +1,353 @@
+\documentclass{article}
+\usepackage{minted}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage[left=1in, right=1in]{geometry}
+
+\begin{document}
+\title{Project 2 Report}
+\author{Taylor Berger, Zachary Friedland, Jianyu Yang}
+\maketitle
+
+\section{Language Decisions}
+\paragraph{} Our group continued to use Python for the
+ease of expressing high level concepts and removal of memory
+management from the project. We also used Git for version control the
+collaboration tools. The repository can be found at
+\href{https://www.github.com/teberger/cs554-project3}{Taylor's
+  Github}.
+
+\paragraph{} We elected to use Zach's homework since he integrated the
+support of ANTLR and its powerful parsing constructs to make
+constructing the AST an easy task. We also took advantage of PyGraphViz for the AST and CFG visualization tasks. 
+
+\section{Scanning, parsing and displaying the AST}
+Scanning, parsing and constructing the AST was done using \href{https://pypi.python.org/pypi/antlr_python_runtime/3.1.3}{ANTLR} and the grammar found in the \verb{simple.g{ file displayed below.
+
+\begin{minted}{antlr}
+grammar simple;
+
+options{
+	language=Python;
+	output=AST;
+	ASTLabelType=CommonTree;
+	backtrack=true;
+}
+/* Arithmetic operators, in order of precedence. */
+MULT	:	'*';
+PLUS	:	'+';
+MINUS	:	'-';
+
+/* Boolean operators, in order of precedence. */
+NOT	:	'not';
+AND	:	'&';
+OR	:	'|';
+RELOP	:	('=' | '<' | '<=' | '>' | '>=');
+
+/* If / else. */
+IF	:	'if';
+THEN	:	'then';
+ELSE	:	'else';
+ENDIF	:	'fi';
+SKIP	:	'skip';
+
+/* Do while. */
+WHILE	:	'while';
+DO	:	'do';
+ENDWHILE	:	'od';
+
+/* Misc. */
+GETS	:	':=';
+SEMI	:	';';
+LPAREN	:	'(';
+RPAREN	:	')';
+BLOCK	:	'block';
+UNARY	:	'unary';
+
+/* Atoms. */
+BOOLEAN	:	('true' | 'false');
+IDENT	:	('a'..'z' | 'A'..'Z')('a'..'z' | 'A'..'Z' | '0'..'9')*;
+INTEGER	:	('0'..'9')+;
+
+/* Ignore whitespace. */
+WS	:	(' ' | '\t' | '\n' | '\r' | '\f')+ {$channel = HIDDEN;};
+
+
+program
+ 	:	block
+ 	;
+
+block
+	:	statement+
+		-> ^(BLOCK statement+)
+	;
+
+/* Arithmetic expressions - craziness due to precendence! */
+arith_expr
+	:	add_expr
+	;
+add_expr
+	:	sub_expr (PLUS^ sub_expr)*
+	;
+sub_expr 
+	:	mult_expr (MINUS^ mult_expr)*
+	;
+mult_expr 
+	:	unary_expr (MULT^ unary_expr)*
+	;
+unary_expr
+	:	MINUS arith_atom
+		-> ^(UNARY MINUS arith_atom)
+	|	PLUS arith_atom
+		-> ^(UNARY PLUS arith_atom)
+	|	arith_atom
+	;
+arith_atom
+	:	(IDENT | INTEGER)
+	|	LPAREN! arith_expr RPAREN!
+	;
+
+/* Boolean expressions - craziness due to precedence! */
+bool_expr 
+	:	or_expr
+	;
+or_expr 
+ 	:	and_expr (AND^ and_expr)*
+ 	;
+and_expr
+ 	:	bool_atom (OR^ bool_atom)*
+ 	;
+bool_atom
+ 	:	BOOLEAN
+	|	NOT^ bool_atom
+	|	LPAREN! bool_expr RPAREN!
+	|	arith_expr RELOP^ arith_expr
+	;
+
+statement
+    :   IDENT GETS^ arith_expr SEMI!
+    |   SKIP SEMI!
+    |   IF^ bool_expr THEN! block ELSE! block ENDIF! SEMI!
+    |   WHILE^ bool_expr DO! block ENDWHILE! SEMI!
+    ;
+\end{minted}
+
+Since the code to parse and generate the AST is auto-generated code, it will be omitted for now, but can be found in the code appendix at the end of the report. 
+
+
+\section{Decorated AST}
+
+\section{Conversion to a CFG}
+Since displaying the graph was done through pygraphviz, we chose to
+directly convert the AST given to us by ANTLR directly into an AGraph
+object in pygraphviz. The following snippet expects an AST previously
+parsed by ANTLR and converts it into an AGraph that represents the
+CFG.
+
+\begin{minted}{python}
+def convert_ast_to_cfg(ast):
+    graph = AGraph()
+    id = 0
+    program = ""
+    revers_stack = []
+    for x in ast.children:
+        revers_stack.append(x)
+    stack = []
+    while(len(revers_stack) != 0):
+        stack.append(revers_stack.pop())
+    layer_stack = []
+    last_id = 0
+    un_solved_stack = []
+    while(len(stack) != 0):
+        x = stack.pop()
+	print x.text
+	print un_solved_stack
+        if x.text == ":=" or x.text == "skip":
+            if x.text == "skip":
+                program = "skip";
+            else:
+                program = str(x.children[0].text) + " := " + render_short(x.children[1])
+            graph.add_node(id, l = program)
+            if(last_id != 0):
+	        graph.add_edge(last_id, id)
+            last_id = id
+        elif x.text == "if":
+            program = "if " + render_short(x.children[0])
+            graph.add_node(id, l = program)
+            if(last_id != 0):
+		graph.add_edge(last_id, id)
+            fi_node = copy(x.children[0])
+	    else_node = copy(x.children[2])
+            then_node = copy(x.children[1])
+	    fi_node.token.text = "fi"
+            else_node.token.text = "else"
+            then_node.token.text = "then"
+	    stack.append(fi_node)
+            stack.append(else_node)
+            stack.append(then_node)
+            layer_stack.append(("if", id))
+            last_id = id
+        elif x.text == "then":
+	    un_solved_stack.append("then")
+            revers_stack = []
+            for xx in x.children:
+                revers_stack.append(xx)
+            while(len(revers_stack) != 0):
+                stack.append(revers_stack.pop())
+        elif x.text == "else":
+	    un_solved_stack.pop()
+            un_solved_stack.append(last_id)
+	    un_solved_stack.append("else")
+            revers_stack = []
+            for xx in x.children:
+                revers_stack.append(xx)
+            while(len(revers_stack) != 0):
+                stack.append(revers_stack.pop())
+            (statement, last_id) = layer_stack.pop()
+	    layer_stack.append((statement,last_id))
+        elif x.text == "fi":
+	    un_solved_stack.pop()
+            un_solved_stack.append(last_id)
+	    layer_stack.pop()
+	    last_id = 0
+        elif x.text == "while":
+            program = "while " + render_short(x.children[0])
+            graph.add_node(id, l = program)
+            if(last_id != 0):
+		graph.add_edge(last_id,id)
+	    od_node = copy(x.children[0])
+            do_node = copy(x.children[1])
+	    od_node.token.text = "od"
+            do_node.token.text = "do"
+	    stack.append(od_node)
+            stack.append(do_node)
+	    layer_stack.append(("while", id))
+	    last_id = id
+        elif x.text == "do":
+            revers_stack = []
+            for xx in x.children:
+                revers_stack.append(xx)
+            while(len(revers_stack) != 0):
+                stack.append(revers_stack.pop())
+        elif x.text == "od":
+	    end_while_id = last_id
+	    (statement, last_id) = layer_stack.pop()
+            graph.add_edge(end_while_id, last_id)
+	print "id:",id," statement: ",program
+	if(x.text != "fi" and x.text != "od"):
+	    s = ""
+	    if(len(un_solved_stack) != 0):
+	        s = un_solved_stack.pop()
+	    while(s != "then" and s != "else" and s != ""):
+	        graph.add_edge(s, id)
+    		s = ""
+	        if(len(un_solved_stack) != 0):
+		    s = un_solved_stack.pop()
+	    if(s == "then" or s == "else"):
+	        un_solved_stack.append(s)
+        id += 1
+        program = ""
+    return graph
+\end{minted}
+
+\section{Data Structures for Reaching Definitions}
+Since python allows for some nice set notation, we decided to
+implement everything using python's built in sets. Each set is
+populated with tuples of ($x$, $l$) where $x \in$ variables(program)
+and $l \in$ labels(program). 
+
+\subsection{Data Flow Equations}
+In each of our CFG's we annotate each node with a list of the variables being updated at that particular label. Since the grammar is relatively simple, there is only one assignment that can occur at the \emph{statement} level. To generate the Reaching Definitions for a given program, we first calculate the genSets and killSets for any given statement as:
+
+\begin{minted}{python}
+def getGenSets(cfg):
+
+    nodes = cfg.nodes()
+    labels = (node.name for node in nodes)
+    variables = (node.attr["var"] for node in nodes)
+
+    genSets = dict()
+    for node, label, variable in zip(nodes, labels, variables):
+        genSets[label] = {(variable, label)} if variable != '' else set()
+
+    return genSets
+
+
+def getKillSets(genSets):
+    killSets = dict()
+
+    for label, genSet in genSets.iteritems():
+        killSets[label] = set()
+
+        if genSet:
+            for generation in genSet:
+                variable = generation[0]
+
+                for gs in genSets.values():
+                    for v, l in gs:
+                        if v == variable and l != label:
+                            killSets[label] |= gs
+
+    return killSets
+\end{minted}
+
+After creating the kill and gen sets for an arbitrary statement, we can construct the reaching definitions with the following bit of code:
+
+\begin{minted}{python}
+def getReachingDefinitions(cfg, startLabel):
+    """
+    Calculates the reaching definitions of a control-flow graph.
+
+    :param AGraph cfg: The control-flow graph for which to calculate RDs.
+    :param str startLabel: The label of the start node of the CFG.
+    :rtype: dict[str, set[(str, str)]]
+    """
+
+    # Gen / Kill sets can be generated completely immediately.
+    # IN / OUT start out empty initially.
+    # The previousOut set is used to track changes to OUT sets during iteration.
+    genSets = getGenSets(cfg)
+    killSets = getKillSets(genSets)
+    inSets = {label: set() for label in genSets}
+    outSets = inSets.copy()
+    previousOutSets = {label: None for label in genSets}
+
+    # The iteration queue stores the next nodes to evaluate in the iteration.
+    queue = deque([startLabel])
+
+    while queue:
+        label = queue.popleft()
+
+        # Calculate (new) IN set.
+        inSets[label] = getInSet(label, cfg, outSets)
+
+        # Calculate the (new) OUT set, and check if it is different from the
+        # previous version so we know whether or not to add the node's
+        # successors to the iteration queue. The previous set is initially
+        # populated by None, so every node will be visited at least once.
+        outSet = getOutSet(label, genSets, killSets, inSets)
+        if outSet != previousOutSets[label]:
+            outSets[label] = outSet
+            previousOutSets[label] = outSet
+            queue.extend((s.name for s in cfg.successors(label) if s not in queue))
+
+    return inSets
+\end{minted}
+
+The function to calculate the reaching definitions for a particular entry is $\text{RD(block)} = \text{RD(block)} - \text{killSet(block)} \cup \text{genSet(block)}$. This is applied iteratively until there are no changes in the previously calculated RD for any given block. There are two utility functions (\emph{getInSet} and \emph{getOutSet}) that are not mentioned here, but can be found in the code appendix. 
+
+\section*{Code Appendix}
+\subsection{AST To CFG Code}
+\inputminted{python}{../parser.py}
+\inputminted{python}{../parser2.py}
+
+\subsection{Reaching Definitions}
+\inputminted{python}{../reaching.py}
+
+\subsection{AST Nodes}
+\inputminted{python}{../nodes.py}
+
+\subsection{ANLTR Generated Code}
+\textbf{Please see the project github if you wish to see this, it's too large an unruly to include in the report.}
+
+\end{document}
