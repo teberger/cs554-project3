@@ -36,15 +36,17 @@ def convert_ast_to_cfg(file):
         if x.text == ":=" or x.text == "skip":
             if x.text == "skip":
                 program = "skip";
+                var = ""
             else:
                 program = str(x.children[0].text) + " := " + render_short(x.children[1])
-            graph.add_node(id, l = program)
+                var = str(x.children[0].text)
+            graph.add_node(id, l = program, var = var)
             if(last_id != 0):
 	        graph.add_edge(last_id, id)
             last_id = id
         elif x.text == "if":
             program = "if " + render_short(x.children[0])
-            graph.add_node(id, l = program)
+            graph.add_node(id, l = program, var = "")
             if(last_id != 0):
 		graph.add_edge(last_id, id)
             fi_node = copy(x.children[0])
@@ -83,7 +85,7 @@ def convert_ast_to_cfg(file):
 	    last_id = 0
         elif x.text == "while":
             program = "while " + render_short(x.children[0])
-            graph.add_node(id, l = program)
+            graph.add_node(id, l = program, var = "")
             if(last_id != 0):
 		graph.add_edge(last_id,id)
 	    od_node = copy(x.children[0])
