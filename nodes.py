@@ -93,7 +93,7 @@ class BlockNode(EmitNode):
 
 class SkipNode(EmitNode):
     def __str__(self):
-        return "SKIP"
+        return "Skip"
 
     def emit(self):
         # Emit useless instruction as a no-op.
@@ -125,7 +125,7 @@ class IdentifierNode(EmitNode):
 
 class UnaryNode(EmitNode):
     def __str__(self):
-        return "".join([str(child) for child in self.children])
+        return str(self.children[0]) + str(self.children[1])
 
     def emit(self):
         op = self.children[0]
@@ -150,12 +150,20 @@ class BooleanNode(EmitNode):
 
 
 class UnaryBoolOpNode(EmitNode):
+    def __str__(self):
+        return str(self.children[0]) + str(self.children[1])
+
     def emit(self):
         b = self.children[0].emit()
         return g_llvm_builder.not_(b, "notbool")
 
 
 class BinaryBoolOpNode(EmitNode):
+    def __str__(self):
+        left = self.children[0]
+        right = self.children[1]
+        return str(left) + " " + self.text + " " + str(right)
+
     def emit(self):
         left = self.children[0].emit()
         right = self.children[1].emit()
@@ -169,6 +177,11 @@ class BinaryBoolOpNode(EmitNode):
 
 
 class AssignmentNode(EmitNode):
+    def __str__(self):
+        left = self.children[0]
+        right = self.children[1]
+        return str(left) + " " + self.text + " " + str(right)
+
     def emit(self):
         name = self.children[0].text
         val = self.children[1].emit()
@@ -187,6 +200,11 @@ class AssignmentNode(EmitNode):
 
 
 class ArithmeticNode(EmitNode):
+    def __str__(self):
+        left = self.children[0]
+        right = self.children[1]
+        return str(left) + " " + self.text + " " + str(right)
+
     def emit(self):
         left = self.children[0].emit()
         right = self.children[1].emit()
@@ -202,6 +220,11 @@ class ArithmeticNode(EmitNode):
 
 
 class RelationalNode(EmitNode):
+    def __str__(self):
+        left = self.children[0]
+        right = self.children[1]
+        return str(left) + " " + self.text + " " + str(right)
+
     def emit(self):
         left = self.children[0].emit()
         right = self.children[1].emit()
@@ -221,6 +244,9 @@ class RelationalNode(EmitNode):
 
 
 class IfElseThenNode(EmitNode):
+    def __str__(self):
+        return "if " + str(self.children[0]) + " then"
+
     def emit(self):
         conditional = self.children[0].emit()
         then_branch = self.children[1]
@@ -251,6 +277,9 @@ class IfElseThenNode(EmitNode):
 
 
 class WhileNode(EmitNode):
+    def __str__(self):
+        return "while " + str(self.children[0])
+
     def emit(self):
         loop = self.children[1]
 

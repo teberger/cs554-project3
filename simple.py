@@ -58,7 +58,15 @@ def main(file):
     ModuleToNativeBinary(g_llvm_module)
     nameMap = dict()
     LabelAst(ast, 0, nameMap)
-    simple_graph.render_graph(ast)
+    transitions = []
+    tails = AstToCfg(ast, transitions, [-1])
+    nameMap[-1] = "Start"
+    nameMap[-2] = "End"
+    # Add transitions from all hanging tails to end block.
+    for tail in tails:
+        transitions.append((tail, -2))
+    simple_graph.renderCFG(transitions, nameMap)
+    simple_graph.renderGraph(ast)
 
     return 0
 
@@ -100,8 +108,48 @@ def LabelAst(ast, counter, nameMap):
     return c
 
 
-def AstToCfg(ast):
-    pass
+def AstToCfg(ast, transitions, parents):
+    """
+    :param EmitNode ast:
+    :param list[(int, EmitNode)] transitions:
+    :param list[int] parents: Incoming labels.
+    :rtype: list[int]
+    """
+    if type(ast) is AssignmentNode:
+        for p in parents:
+            transitions.append((p, ast.label))
+        return [ast.label]
+    elif type(ast) is SkipNode:
+        for p in parents:
+            transitions.append((p, ast.label))
+        return [ast.label]
+    elif type(ast) is IfElseThenNode:
+        for p in parents:
+            transitions.append((p, ast.label))
+
+        then_tails = AstToCfg(ast.children[1], transitions, [ast.label])
+        else_tails = AstToCfg(ast.children[2], transitions, [ast.label])
+
+        then_tails.extend(else_tails)
+        return then_tails
+    elif type(ast) is WhileNode:
+        for p in parents:
+            transitions.append((p, ast.label))
+
+        tails = AstToCfg(ast.children[1], transitions, [ast.label])
+
+        for t in tails:
+            transitions.append((t, ast.label))
+
+        return [ast.label]
+    elif type(ast) is BlockNode:
+        for c in ast.children:
+            parents = AstToCfg(c, transitions, parents)
+
+        return parents
+    else:
+        raise ValueError("Should not get here... something went wrong in this case. Current node is of type: " + str(type(ast)))
+
 
 
 def EmitGlobalString(module, builder, g_string):
