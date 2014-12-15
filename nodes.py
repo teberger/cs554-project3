@@ -15,6 +15,12 @@ tp_bool = Type.int(1)
 
 
 class EmitNode(antlr3.tree.CommonTree):
+    def __init__(self, payload):
+        super(EmitNode, self).__init__(payload)
+
+        self.label = None
+        """ The program point label of this node in the CFG. """
+
     def __str__(self):
         return self.text
 

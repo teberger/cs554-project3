@@ -4,7 +4,7 @@
     and produces an executable.
 """
 import nodes
-from nodes import LlvmAdaptor, tp_int
+from nodes import *
 import simple_graph
 
 # ANTLR
@@ -56,6 +56,8 @@ def main(file):
     nodes.g_llvm_builder.ret(Constant.int(tp_int, 0))
 
     ModuleToNativeBinary(g_llvm_module)
+    nameMap = dict()
+    LabelAst(ast, 0, nameMap)
     simple_graph.render_graph(ast)
 
     return 0
@@ -74,6 +76,32 @@ def SimpleParse(input):
     llvmAdaptor = LlvmAdaptor()
     parser.setTreeAdaptor(llvmAdaptor)
     return parser.program().tree
+
+
+def LabelAst(ast, counter, nameMap):
+    if type(ast) is AssignmentNode or type(ast) is SkipNode:
+        ast.label = counter
+        nameMap[ast.label] = ast
+        return counter + 1
+    elif type(ast) is IfElseThenNode:
+        #condition is 0
+        ast.label = counter
+        nameMap[ast.label] = ast
+        counter += 1
+    elif type(ast) is WhileNode:
+        ast.label = counter
+        nameMap[ast.label] = ast
+        counter += 1
+
+    c = counter
+    for child in ast.children:
+        c = LabelAst(child, c, nameMap)
+
+    return c
+
+
+def AstToCfg(ast):
+    pass
 
 
 def EmitGlobalString(module, builder, g_string):
@@ -126,7 +154,7 @@ def ModuleToNativeBinary(module):
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) != 2:
-        print "Usage: simple.py file\n"
+    # if len(sys.argv) != 2:
+    #     print "Usage: simple.py file\n"
 
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main("input/input3.txt"))

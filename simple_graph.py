@@ -14,12 +14,17 @@ def render_graph(ast):
     """ Generate a digraph using Graphviz. """
     graph = graphviz.Digraph(format='png')
     tree_walk(graph, ast, None)
-    graph.render('graph.png')
+    graph.render('output/graph')
 
 
 def tree_walk(graph, ast, parent):
     this_node = getName()
-    graph.node(name=this_node, label=ast.text)
+    # Only put a program point label if there is one!
+    if ast.label is not None:
+        graph.node(name=this_node, label="[" + str(ast.label) + "] " + ast.text)
+    else:
+        graph.node(name=this_node, label=ast.text)
+
     if parent is not None:
         graph.edge(parent, this_node)
     for child in ast.children:
